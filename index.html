@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>The North Star | A Legacy Browser</title>
+
+  <!-- favicon: the image you asked for -->
+  <link rel="icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRBnpdhG84JRDhRR7XGvrH2w12le0Bh3tqpFg&s" type="image/png">
+
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
+  <style>
+    :root{
+      --primary-brown:#4A352B;--secondary-tan:#D9C3A9;--accent-gold:#FFC107;
+      --text-color:#F7F5E6;--background-dark:#2c2929;--font-family-serif:'Roboto Slab',serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:var(--font-family-serif);display:flex;flex-direction:column;height:100vh;color:var(--text-color);background:var(--background-dark);overflow:hidden}
+    .browser-header{display:flex;align-items:center;padding:10px 14px;background:var(--primary-brown);border-bottom:2px solid var(--secondary-tan);z-index:20}
+    .logo{font-weight:700;color:var(--secondary-tan);display:flex;align-items:center;margin-right:12px}
+    .star-icon{color:var(--accent-gold);margin-right:8px;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.05);opacity:1}}
+    #tabs{display:flex;gap:6px;margin-right:12px}
+    .tabBtn{background:transparent;border:1px solid transparent;color:var(--secondary-tan);padding:6px 8px;border-radius:6px;cursor:pointer}
+    .tabBtn.active{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.06)}
+    form{flex:1;display:flex;align-items:center;gap:8px}
+    input[type=text]{flex:1;padding:9px 12px;border-radius:22px;border:1px solid var(--secondary-tan);background:rgba(255,255,255,.06);color:var(--text-color)}
+    .modeToggle{display:flex;gap:6px;margin-left:8px}
+    button.iconBtn{background:transparent;border:none;color:var(--secondary-tan);cursor:pointer;padding:8px;border-radius:6px}
+    .content-wrapper{position:relative;flex:1;display:flex;align-items:stretch;justify-content:stretch;overflow:hidden}
+    .pane{flex:1;position:relative;overflow:hidden}
+    iframe.contentFrame{width:100%;height:100%;border:0;opacity:0;transition:opacity .35s}
+    iframe.contentFrame.visible{opacity:1}
+    #initialMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .messageBox{max-width:640px;text-align:center;color:var(--secondary-tan);padding:20px;background:transparent}
+    .loadingOverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:60;background:rgba(0,0,0,.75);flex-direction:column}
+    .loadingOverlay img{width:110px;height:110px;border-radius:50%;object-fit:cover;margin-bottom:12px;animation:pulse 2s infinite}
+    .controlsArea{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:70}
+    .bookmarkModal{position:fixed;right:12px;top:64px;width:320px;max-height:60vh;overflow:auto;background:rgba(10,8,8,0.85);border:1px solid rgba(255,255,255,0.06);padding:12px;border-radius:8px;display:none;z-index:120}
+    .bookmarkModal h4{margin:0 0 8px 0;color:var(--accent-gold)}
+    .bookmarkItem{padding:6px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.02);cursor:pointer}
+    .tabsBarUI{display:flex;gap:6px;align-items:center;margin-right:8px}
+    .note{color:rgba(215,195,169,.9);font-size:.9rem;margin-top:6px}
+    @media (max-width:700px){.bookmarkModal{right:6px;left:6px;width:auto}}
+  </style>
+</head>
+<body>
+  <header class="browser-header">
+    <div class="logo"><i class="fas fa-star star-icon"></i>The North Star</div>
+
+    <div id="tabs" class="tabsBarUI"></div>
+
+    <form id="urlForm" autocomplete="off">
+      <input id="urlInput" type="text" placeholder="Follow the path..." value="https://www.nps.gov/hatu/index.htm" />
+      <button class="iconBtn" title="Go" type="submit"><i class="fas fa-compass"></i></button>
+      <div class="modeToggle">
+        <button id="modeBtn" class="iconBtn" title="Toggle Mode"><i class="fas fa-exchange-alt"></i></button>
+        <button id="bookmarkBtn" class="iconBtn" title="Bookmarks"><i class="fas fa-bookmark"></i></button>
+        <button id="newTabBtn" class="iconBtn" title="New Tab"><i class="fas fa-plus"></i></button>
+      </div>
+    </form>
+
+    <div style="margin-left:8px">
+      <button id="backBtn" class="iconBtn" title="Back"><i class="fas fa-arrow-left"></i></button>
+      <button id="forwardBtn" class="iconBtn" title="Forward"><i class="fas fa-arrow-right"></i></button>
+    </div>
+  </header>
+
+  <main class="content-wrapper">
+    <div class="pane" id="paneArea">
+      <!-- initial message -->
+      <div id="initialMsg"><div class="messageBox"><p style="font-style:italic">"I was the conductor of the Underground Railroad for eight years, and I can say what most conductors can't say—I never ran my train off the track and I never lost a passenger."</p><p class="note">— Harriet Tubman</p></div></div>
+
+      <!-- dynamic tabs/iframes inserted here -->
+    </div>
+
+    <div class="loadingOverlay" id="loadingOverlay">
+      <img id="harrietLoading" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys/RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3N//AABEIAFwAXAMBIgACEQEDEQH/xAAbAAACAwEBAQAAAAAAAAAAAAAFBgIDBAEHAP/EADgQAAIBAwMCAgcFBwUAAAAAAAECAwAEEQUSITFBUXEGExQiYZGhFSMygcEzQlJicrHRB4KD4fD/xAAXAQEBAQEAAAAAAAAAAAAAAAAAAQID/8QAFxEBAQEBAAAAAAAAAAAAAAAAABEBIf/aAAwDAQACEQMRAD8A2Ec13bUsV9XB2cK1DHNWVGQkIzBckDIHjQrHdXkdv7pBeQ/uL+tY/bLqU4jhQf1ZOPzoZp5ku7zMrHfI25zjpTIyxxpgLxjk1YgWNWjifZdKBjq6ciiS7ZEV0IKMMhh0NLXpJHGo9bbq6t3BPBrP6LavtnFpIfu5c7B/C3/dIGsjmoMRVnJWqyMVCqmxUMMei5/OrWwBVZYg4ApAX2/Gvu9SqNF19jFcdd6MmSMgjI7V2uGqgFpVl6mGX2Zm9YG6zdR4jp496ssotTeS59qlAQfssHOa2XCGOXcrcPWHUI7h4HaPUJInI/CqjA/PGe31qgHJLq8sZV4pJQ5ICBFIx51z0StCmszMxH3URAHXqR8qoe9vbeNbRbj1pYjmPxPbApk0KwextWM6gTykM+OuOwNEERgcCq2GakV29Rz419jioqls4qB61a44qBQZ60QWqPepnpWLULv2ZBswXb6CjWtTEIu5yFA7niht3rNtA21AZW8RwB+dBp7yS5d/WuzFeoPge+O1ZJygYISN3w8KqD1pNcal64tHsCnEbD8OR1HyIoXq81zboUWSaN89gwB8uOaL+j15E8Hsu1vWrl87TtI8+xot160CTotpcQXH2neQO0EcbMWxlwR+9tPJ4zTVbzQ3UImtZUljPRlOanqXrV065Nom+b1TbFHc4rzKzmmsZRJZyPCwGOD18xRHpbCokE0E0j0kW6eOC+jWOVzgSL+En4jtR1+KCrHTNRce9VnXrUG61ASIpc1uYG5lLE7R7nTI/wDZplkIVSx6AZNKc7h97Pks2SQO9GtBoLjZdFZm9549uSe/bzqFmq7ZL66JWEMQPFz4Cq9VAYRPDKu6OQe63Xr3Fa0snNwgnffDAMjjClvgPDpVZMWiajZQ2UhuZo4JFYFlc4OO2PH8qJw6lYzw+viu4TF/EW2/3pKlj3s77RuOQox0+NQvbWFdJ9XukM4fCjPuqDyT5+VA6fbOlLydTsx/zr/mkfXFt/tW5a0kSWF23hkORkjJ5881lSwiT8ak+FcmEMKHeAAB0qjM8p3hOV+Neg6Le/aOlxTH9ovuSD+Yf5615iJl9p9Yuduc4ps9Br0e0z2nO2Rd6/1Dr9D9KbhhtxxVR571c+ee1U4+NZUQvjts5SP4SKWJwxXbGpbxPambUjixmP8AL+opZuTGVYOwbGfdU/pRdANWuIICQTulXBJQcda0y6jCse4yZBGQoGTQjWnjZmCA5J78Gsdm25NrZyOBWmRd9SOcIOPKvtV1SYWEEbTJsaQsbZOoIGASf0oVMybssGUDwHNR1CeGRLeO2tliKJ7zjkyE9z4GiLTd39wAN2xB0A4rPcSSIwEr7vgTWVyxHLsfM1r0PTX1XVLezXIDtmQjsg5Y/KtQZWO+QlBwaM6Jd+xajaz5wEfDZ7KeD9DWTWrAaXrF1aKfcjf3N3dSAR8gcflUIOh6kD5GmmPWGBOSe1VGqtImN1o9nM3LGMBv6hwfqKvIArm02aiu6xnA67CaU5VSdChRTJ0BY4HzpzkAaN1PQqRSe1tFOG9aMhecdj50XSzq7SQxvG7qf3QqI+0f7ieaEWfuOCVyp48qdry3ito4UjQETMS5cA+XHSlkW8aajNGoITw8K1WWj2FmQSR8KTkNjp/esl7A8OyVo5FjYECQkfeEeHH0o/FbqlvH7zNkYIbv5+NSeCOWzguHBLJcerVdx2gbc8DxoQmyQTlsyKR8MdKdv9N7FRHeXpIL5EKjwHU/Pj5UJuIVl3s2emetZdM1a50O4Ells++YI6yAkEZ8+tLQS/1Gh2axbThcCS3257Eqx/yKXrcStg7ZMdsJxXonpxYxXejeukLBoHDptI78EH50jzAWqqkYznglic0vEM/oTcSMt3ayA4XbIvGBzwf0pkYqDzS96CwobS8uCCZDKEyTngAH9aYScGo0/9k=" alt="Harriet">
+      <div style="color:var(--secondary-tan);margin-top:8px">Loading the path...</div>
+      <div id="fallbackControls" style="display:none;margin-top:12px">
+        <div class="note">Site blocked from embedding — try proxy or open in new tab</div>
+        <div style="margin-top:8px">
+          <button id="openNewTabBtn" class="tabBtn">Open in new tab</button>
+          <button id="tryProxyBtn" class="tabBtn">Try proxy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bookmarkModal" id="bookmarkModal">
+      <h4>Bookmarks</h4>
+      <div id="bookmarkList"></div>
+      <div style="margin-top:8px">
+        <input id="newBookmarkName" placeholder="name (optional)" style="width:100%;padding:8px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);color:var(--text-color)">
+        <button id="saveBookmarkBtn" class="tabBtn" style="margin-top:8px">Save Current</button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ---------- Config ----------
+    // set this to your proxy prefix once you've deployed the Node proxy or Corrosion/Ultraviolet instance
+    // example: 'https://my-proxy.example/fetch?u='
+    const PROXY_PREFIX = '' // you will replace this later
+
+    // ---------- State ----------
+    let mode = localStorage.getItem('north_mode') || 'iframe' // iframe | proxy | normal
+    let tabs = JSON.parse(localStorage.getItem('north_tabs') || '[]'); if(!tabs.length) tabs = ['about:blank']
+    let currentTab = parseInt(localStorage.getItem('north_currentTab') || '0')
+    let bookmarks = JSON.parse(localStorage.getItem('north_bookmarks') || '[]')
+
+    // ---------- DOM ----------
+    const paneArea = document.getElementById('paneArea')
+    const tabsEl = document.getElementById('tabs')
+    const urlInput = document.getElementById('urlInput')
+    const urlForm = document.getElementById('urlForm')
+    const loadingOverlay = document.getElementById('loadingOverlay')
+    const fallbackControls = document.getElementById('fallbackControls')
+    const openNewTabBtn = document.getElementById('openNewTabBtn')
+    const tryProxyBtn = document.getElementById('tryProxyBtn')
+    const modeBtn = document.getElementById('modeBtn')
+    const bookmarkBtn = document.getElementById('bookmarkBtn')
+    const bookmarkModal = document.getElementById('bookmarkModal')
+    const bookmarkList = document.getElementById('bookmarkList')
+    const saveBookmarkBtn = document.getElementById('saveBookmarkBtn')
+    const newBookmarkName = document.getElementById('newBookmarkName')
+    const backBtn = document.getElementById('backBtn')
+    const forwardBtn = document.getElementById('forwardBtn')
+    const newTabBtn = document.getElementById('newTabBtn')
+
+    // ---------- helpers ----------
+    function normalizeUrl(url){
+      if(!url) return ''
+      url = url.trim()
+      if(url.startsWith('about:') || url.startsWith('data:') ) return url
+      if(!/^[a-zA-Z]+:\/\//.test(url)) return 'https://' + url
+      return url
+    }
+    function saveState(){ localStorage.setItem('north_tabs', JSON.stringify(tabs)); localStorage.setItem('north_currentTab', currentTab); localStorage.setItem('north_bookmarks', JSON.stringify(bookmarks)); localStorage.setItem('north_mode', mode) }
+
+    // ---------- UI build ----------
+    function renderTabs(){
+      tabsEl.innerHTML = ''
+      tabs.forEach((t,i) => {
+        const btn = document.createElement('button'); btn.className='tabBtn' + (i===currentTab? ' active':''); btn.textContent = (i+1)
+        btn.addEventListener('click', ()=> switchTab(i))
+        tabsEl.appendChild(btn)
+      })
+    }
+
+    function buildIframes(){
+      // remove old frames
+      const old = paneArea.querySelectorAll('iframe')
+      old.forEach(o=>o.remove())
+
+      tabs.forEach((t,i) => {
+        const frame = document.createElement('iframe')
+        frame.className = 'contentFrame'
+        frame.dataset.index = i
+        frame.referrerPolicy = 'no-referrer'
+        frame.src = (t === 'about:blank') ? 'about:blank' : t
+        if(i === currentTab) frame.classList.add('visible')
+        // on load hide overlay if it's the active one
+        frame.addEventListener('load', () => {
+          if(parseInt(frame.dataset.index) === currentTab){
+            hideLoading()
+          }
+        })
+        paneArea.appendChild(frame)
+      })
+    }
+
+    function showLoading(){
+      loadingOverlay.style.display = 'flex'
+      fallbackControls.style.display = 'none'
+    }
+    function hideLoading(){ loadingOverlay.style.display = 'none'; fallbackControls.style.display = 'none' }
+
+    function showFallback(){
+      loadingOverlay.style.display = 'flex'
+      fallbackControls.style.display = 'block'
+    }
+
+    // ---------- navigation / loading ----------
+    let attemptTimer = null
+    function loadToTab(rawUrl, useProxy=false){
+      if(!rawUrl) return
+      const u = normalizeUrl(rawUrl)
+      tabs[currentTab] = u
+      saveState()
+      renderTabs()
+      // set iframe src according to mode preference if not forcing
+      const iframeMode = useProxy ? 'proxy' : mode
+      const final = (iframeMode==='proxy' && PROXY_PREFIX) ? (PROXY_PREFIX + encodeURIComponent(u)) : u
+
+      // find the iframe for current tab
+      buildIframes()
+      const frame = paneArea.querySelector('iframe[data-index="'+currentTab+'"]')
+      if(!frame) return
+      showLoading()
+      frame.classList.remove('visible')
+      // assign src
+      try { frame.src = final } catch(e){ console.warn(e) }
+
+      // attempt fallback detection:
+      // if load event doesn't fire in 2500ms, we assume the site blocked embedding
+      clearTimeout(attemptTimer)
+      attemptTimer = setTimeout(()=> {
+        // if still loading (no visible class), show fallback
+        showFallback()
+      }, 2500)
+    }
+
+    function switchTab(i){
+      if(i < 0 || i >= tabs.length) return
+      currentTab = i; saveState(); renderTabs(); buildIframes()
+    }
+    function newTab(openUrl){
+      tabs.push(openUrl || 'about:blank')
+      currentTab = tabs.length - 1
+      saveState(); renderTabs(); buildIframes()
+    }
+    function closeCurrentTab(){
+      if(tabs.length === 1){ tabs[0] = 'about:blank'; saveState(); buildIframes(); return }
+      tabs.splice(currentTab,1)
+      if(currentTab >= tabs.length) currentTab = tabs.length -1
+      saveState(); renderTabs(); buildIframes()
+    }
+
+    // ---------- bookmarks ----------
+    function renderBookmarks(){
+      bookmarkList.innerHTML = ''
+      if(bookmarks.length===0) bookmarkList.innerHTML = '<div class="note">no bookmarks yet</div>'
+      bookmarks.forEach((b, idx) => {
+        const el = document.createElement('div'); el.className='bookmarkItem'; el.innerHTML = `<strong>${b.name||b.url}</strong><div style="font-size:.85rem;color:rgba(215,195,169,.8)">${b.url}</div>`
+        el.addEventListener('click', ()=> { document.getElementById('urlInput').value = b.url; loadToTab(b.url); bookmarkModal.style.display='none' })
+        bookmarkList.appendChild(el)
+      })
+    }
+    function saveBookmark(){
+      const url = tabs[currentTab] || normalizeUrl(urlInput.value)
+      if(!url) return
+      const name = newBookmarkName.value.trim()
+      bookmarks.unshift({url,name})
+      saveState()
+      renderBookmarks()
+      newBookmarkName.value = ''
+    }
+
+    // ---------- history basics via per-tab last url (simple) ----------
+    // not using a full stack per tab, keep it simple for now
+
+    // ---------- event wiring ----------
+    urlForm.addEventListener('submit', (e) => {
+      e.preventDefault()
+      const u = urlInput.value.trim()
+      loadToTab(u)
+    })
+    document.getElementById('modeBtn').addEventListener('click', () => {
+      // cycle between modes
+      if(mode==='iframe') mode='proxy'
+      else if(mode==='proxy') mode='normal'
+      else mode='iframe'
+      localStorage.setItem('north_mode', mode)
+      alert('Mode: ' + mode + (mode==='proxy' && !PROXY_PREFIX ? '\nNo PROXY_PREFIX set yet' : '') )
+    })
+    bookmarkBtn.addEventListener('click', ()=> {
+      bookmarkModal.style.display = (bookmarkModal.style.display === 'block') ? 'none' : 'block'
+      renderBookmarks()
+    })
+    saveBookmarkBtn.addEventListener('click', saveBookmark)
+    openNewTabBtn.addEventListener('click', ()=> {
+      const u = normalizeUrl(urlInput.value) || tabs[currentTab]
+      window.open(u,'_blank','noopener')
+    })
+    tryProxyBtn.addEventListener('click', ()=> {
+      if(!PROXY_PREFIX){ alert('Set PROXY_PREFIX in the script to enable proxy mode') ; return }
+      loadToTab(tabs[currentTab] || urlInput.value, true)
+    })
+    backBtn.addEventListener('click', ()=> {
+      // "back" fallback: go to about:blank then keep it simple
+      tabs[currentTab] = 'about:blank'
+      saveState(); buildIframes()
+    })
+    forwardBtn.addEventListener('click', ()=> { /* simple placeholder for forward */ alert('forward not implemented fully') })
+    newTabBtn.addEventListener('click', ()=> newTab('about:blank'))
+
+    // ---------- init ----------
+    function initUI(){
+      renderTabs(); buildIframes()
+      // populate url input from current tab
+      urlInput.value = tabs[currentTab] === 'about:blank' ? '' : tabs[currentTab]
+      renderBookmarks()
+      // load first tab if it has a URL (but we won't auto-navigate school default)
+      if(tabs[currentTab] && tabs[currentTab] !== 'about:blank') loadToTab(tabs[currentTab])
+    }
+    initUI()
+    // save when leaving
+    window.addEventListener('beforeunload', saveState)
+
+  </script>
+</body>
+</html>
